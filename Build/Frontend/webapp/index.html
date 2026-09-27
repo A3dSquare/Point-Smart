@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gesture Smart Home Control</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #111;
+    color: #eee;
+    text-align: center;
+    padding: 20px;
+  }
+  h1 { font-size: 1.3rem; font-weight: 600; margin-bottom: 16px; }
+  #feed {
+    max-width: 95vw;
+    max-height: 70vh;
+    border: 2px solid #333;
+    border-radius: 10px;
+    background: #000;
+  }
+  .controls { margin-top: 16px; }
+  input[type="text"] {
+    font-size: 1rem;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #1b1b1b;
+    color: #eee;
+    width: 260px;
+  }
+  button {
+    font-size: 0.95rem;
+    padding: 8px 14px;
+    margin-left: 6px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+  }
+  #calibrateBtn { background: #2f7d3c; color: white; }
+  #cancelBtn { background: #555; color: white; }
+  #clearBtn { background: #8a2f2f; color: white; }
+  #statusLine {
+    margin-top: 14px;
+    font-size: 0.9rem;
+    color: #9cd1ff;
+    min-height: 1.4em;
+  }
+</style>
+</head>
+<body>
+  <h1>Gesture Smart Home Control</h1>
+
+  <img id="feed" src="/video_feed" alt="live camera feed">
+
+  <div class="controls">
+    <input id="objName" type="text" placeholder="e.g. air purifier"
+           onkeydown="if(event.key==='Enter') calibrate()">
+    <button id="calibrateBtn" onclick="calibrate()">Calibrate</button>
+    <button id="cancelBtn" onclick="cancelCalibration()">Cancel</button>
+    <button id="clearBtn" onclick="clearAll()">Clear All</button>
+  </div>
+
+  <div id="statusLine">Loading status...</div>
+
+<script>
+async function calibrate() {
+  const nameInput = document.getElementById('objName');
+  const name = nameInput.value.trim();
+  if (!name) return;
+
+  const res = await fetch('/calibrate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  const data = await res.json();
+  setStatusMessage(data.message || data.error || 'Unknown response');
+  if (data.ok) nameInput.value = '';
+  refreshStatus();
+}
+
+async function cancelCalibration() {
+  await fetch('/cancel', { method: 'POST' });
+  refreshStatus();
+}
+
+async function clearAll() {
+  await fetch('/clear', { method: 'POST' });
+  refreshStatus();
+}
+
+function setStatusMessage(msg) {
+  document.getElementById('statusLine').innerText = msg;
+}
+
+async function refreshStatus() {
+  try {
+    const res = await fetch('/status');
+    const data = await res.json();
+    const armed = data.waiting_for_point
+      ? `ARMED for "${data.pending_calibration_name}" - point at it now`
+      : 'idle';
+    const calibrated = data.calibrated_objects.length
+      ? data.calibrated_objects.join(', ')
+      : 'none yet';
+    setStatusMessage(`${data.status_text} | ${armed} | Calibrated: ${calibrated}`);
+  } catch (e) {
+    setStatusMessage('Lost connection to the Python app.');
+  }
+}
+
+setInterval(refreshStatus, 1000);
+refreshStatus();
+</script>
+</body>
+</html>
